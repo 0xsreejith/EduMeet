@@ -1,0 +1,135 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isTeacher() {
+      return isAuthenticated() && (
+        getUserData().role == 'teacher' || 
+        request.auth.token.role == 'teacher'
+      );
+    }
+
+    function isClassTeacher(teacherId) {
+      return isAuthenticated() && request.auth.uid == teacherId;
+    }
+
+    // --- Users Collection ---
+    match /users/{userId} {
+      // Any authenticated user can read user profiles (to see teacher/peer info in classes)
+      allow read: if isAuthenticated();
+      // Users can only create or update their own profile
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && request.resource.data.id == userId;
+      allow delete: if false; // Deletion handled via admin or Cloud Functions
+    }
+
+    // --- Classes Collection ---
+    match /classes/{classId} {
+      // Anyone authenticated can read class catalog / enrolled classes
+      allow read: if isAuthenticated();
+      // Only teachers can create classes
+      allow create: if isAuthenticated() && 
+                    request.resource.data.teacherId == request.auth.uid;
+      // Only the owning teacher can update or delete the class
+      allow update: if isAuthenticated() && 
+                    (resource.data.teacherId == request.auth.uid || 
+                     request.resource.data.teacherId == request.auth.uid);
+      allow delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
+    }
+
+    // --- Enrollments Collection ---
+    match /enrollments/{enrollmentId} {
+      allow read: if isAuthenticated() && 
+                  (resource.data.studentId == request.auth.uid || 
+                   resource.data.teacherId == request.auth.uid);
+      // Students can enroll themselves
+      allow create: if isAuthenticated() && 
+                    request.resource.data.studentId == request.auth.uid;
+      allow delete: if isAuthenticated() && 
+                    (resource.data.studentId == request.auth.uid || 
+                     resource.data.teacherId == request.auth.uid);
+    }
+
+    // --- Class Sessions Collection ---
+    match /class_sessions/{sessionId} {
+      allow read: if isAuthenticated();
+      // Only the host teacher can start, modify, or end a session
+      allow create: if isAuthenticated() && 
+                    request.resource.data.hostId == request.auth.uid;
+      allow update: if isAuthenticated() && 
+                    resource.data.hostId == request.auth.uid;
+      allow delete: if isAuthenticated() && 
+                    resource.data.hostId == request.auth.uid;
+    }
+
+    // --- Attendance Collection ---
+    match /attendance/{attendanceId} {
+      // Students can read their own attendance; teachers can view all records for their classes
+      allow read: if isAuthenticated() && 
+                  (resource.data.studentId == request.auth.uid || 
+                   resource.data.teacherId == request.auth.uid);
+      // Only verified teachers can mark or update attendance
+      allow create, update: if isAuthenticated() && isTeacher();
+      allow delete: if isAuthenticated() && isTeacher();
+    }
+
+    // --- Messages Collection ---
+    match /messages/{messageId} {
+      allow read: if isAuthenticated();
+      // Sender must match current authenticated user
+      allow create: if isAuthenticated() && 
+                    request.resource.data.senderId == request.auth.uid;
+      allow update: if isAuthenticated() && 
+                    resource.data.senderId == request.auth.uid;
+      allow delete: if isAuthenticated() && 
+                    resource.data.senderId == request.auth.uid;
+    }
+
+    // --- Announcements Collection ---
+    match /announcements/{announcementId} {
+      allow read: if isAuthenticated();
+      // Only teachers can publish announcements
+      allow create, update, delete: if isAuthenticated() && isTeacher();
+    }
+
+    // --- Assignments Collection ---
+    match /assignments/{assignmentId} {
+      allow read: if isAuthenticated();
+      // Only teachers can create, edit, or delete assignments
+      allow create, update, delete: if isAuthenticated() && isTeacher();
+    }
+
+    // --- Grades Collection ---
+    match /grades/{gradeId} {
+      // Students can only read their own grades; teachers can read and write
+      allow read: if isAuthenticated() && 
+                  (resource.data.studentId == request.auth.uid || isTeacher());
+      // Only teachers can post or adjust grades
+      allow create, update, delete: if isAuthenticated() && isTeacher();
+    }
+
+    // --- Notifications Collection ---
+    match /notifications/{notificationId} {
+      // Users can only view and update their own notifications
+      allow read, update: if isAuthenticated() && 
+                          resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated();
+      allow delete: if isAuthenticated() && 
+                    resource.data.userId == request.auth.uid;
+    }
+  }
+}
+

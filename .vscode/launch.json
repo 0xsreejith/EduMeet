@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "EduMeet (Default Device) [.env]",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define-from-file=.env"
+      ]
+    },
+    {
+      "name": "EduMeet (iPhone 17) [.env]",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "735879C6-FBA8-427B-81F7-BE4768E2B58D",
+      "args": [
+        "--dart-define-from-file=.env"
+      ]
+    },
+    {
+      "name": "EduMeet (iPhone Duo) [.env]",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "64E00784-4262-4E53-ABD5-EA250AFB1E3E",
+      "args": [
+        "--dart-define-from-file=.env"
+      ]
+    }
+  ]
+}
+
